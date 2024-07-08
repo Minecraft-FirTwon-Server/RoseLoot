@@ -3,7 +3,7 @@ name: Java Build and Upload Artifact
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 jobs:
