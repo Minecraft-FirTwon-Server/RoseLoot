@@ -1,0 +1,32 @@
+name: Java Build and Upload Artifact
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build with Gradle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'adopt'
+          java-version: '17'
+
+      - name: Build with Gradle
+        run: |
+          ./gradlew build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: java-artifact
+          path: build/libs/*.jar
