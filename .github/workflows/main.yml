@@ -21,6 +21,10 @@ jobs:
           distribution: 'adopt'
           java-version: '17'
 
+      - name: Ensure the script can be excuted
+        run: |
+          chmod +x ./gradlew
+
       - name: Build with Gradle
         run: |
           ./gradlew build
