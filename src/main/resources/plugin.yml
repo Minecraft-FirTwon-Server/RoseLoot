@@ -16,6 +16,7 @@ softdepend:
   - TokenManager
   - eco
   - EcoBosses
+  - EcoMobs
   - MythicLib
   - MMOItems
   - ItemBridge
@@ -41,6 +42,7 @@ softdepend:
   - CoreProtect
   - DeezItems
   - CustomFishing
+  - BlockTracker
 permissions:
   roseloot.basecommand:
     description: Allows using the RoseLoot commands
