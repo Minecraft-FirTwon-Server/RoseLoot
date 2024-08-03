@@ -1,7 +1,9 @@
 package dev.rosewood.roseloot.listener.hook;
 
 import dev.rosewood.rosegarden.RosePlugin;
+import dev.rosewood.rosegarden.config.RoseConfig;
 import dev.rosewood.rosegarden.utils.EntitySpawnUtil;
+import dev.rosewood.roseloot.config.SettingKey;
 import dev.rosewood.roseloot.listener.helper.LazyLootTableListener;
 import dev.rosewood.roseloot.loot.LootContents;
 import dev.rosewood.roseloot.loot.LootResult;
@@ -9,7 +11,7 @@ import dev.rosewood.roseloot.loot.context.LootContext;
 import dev.rosewood.roseloot.loot.context.LootContextParam;
 import dev.rosewood.roseloot.loot.context.LootContextParams;
 import dev.rosewood.roseloot.loot.table.LootTableTypes;
-import dev.rosewood.roseloot.manager.ConfigurationManager;
+import dev.rosewood.roseloot.manager.LootTableManager;
 import dev.rosewood.roseloot.util.LootUtils;
 import io.th0rgal.oraxen.api.events.noteblock.OraxenNoteBlockBreakEvent;
 import io.th0rgal.oraxen.api.events.stringblock.OraxenStringBlockBreakEvent;
@@ -52,7 +54,8 @@ public class OraxenBlockBreakListener extends LazyLootTableListener {
         if (player.getGameMode() == GameMode.CREATIVE)
             return;
 
-        if (ConfigurationManager.Setting.DISABLED_WORLDS.getStringList().stream().anyMatch(x -> x.equalsIgnoreCase(block.getWorld().getName())))
+        RoseConfig config = this.rosePlugin.getRoseConfig();
+        if (config.get(SettingKey.DISABLED_WORLDS).stream().anyMatch(x -> x.equalsIgnoreCase(block.getWorld().getName())))
             return;
 
         LootContext lootContext = LootContext.builder(LootUtils.getEntityLuck(player))
@@ -61,7 +64,7 @@ public class OraxenBlockBreakListener extends LazyLootTableListener {
                 .put(LootContextParams.LOOTED_BLOCK, block)
                 .put(ORAXEN_BLOCK, itemId)
                 .build();
-        LootResult lootResult = LOOT_TABLE_MANAGER.getLoot(LootTableTypes.BLOCK, lootContext);
+        LootResult lootResult = this.rosePlugin.getManager(LootTableManager.class).getLoot(LootTableTypes.BLOCK, lootContext);
         if (lootResult.isEmpty())
             return;
 
@@ -73,7 +76,7 @@ public class OraxenBlockBreakListener extends LazyLootTableListener {
         lootContents.getItems().forEach(x -> droppedItems.add(block.getWorld().dropItemNaturally(dropLocation, x)));
 
         // Simulate a BlockDropItemEvent for each item dropped for better custom enchantment plugin support if enabled
-        if (!droppedItems.isEmpty() && ConfigurationManager.Setting.SIMULATE_BLOCKDROPITEMEVENT.getBoolean()) {
+        if (!droppedItems.isEmpty() && config.get(SettingKey.SIMULATE_BLOCKDROPITEMEVENT)) {
             List<Item> eventItems = new ArrayList<>(droppedItems);
             BlockDropItemEvent blockDropItemEvent = new BlockDropItemEvent(block, block.getState(), player, eventItems);
             Bukkit.getPluginManager().callEvent(blockDropItemEvent);

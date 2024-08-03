@@ -1,6 +1,7 @@
 package dev.rosewood.roseloot.listener.paper;
 
 import dev.rosewood.rosegarden.RosePlugin;
+import dev.rosewood.roseloot.config.SettingKey;
 import dev.rosewood.roseloot.listener.helper.LazyLootTableListener;
 import dev.rosewood.roseloot.loot.LootContents;
 import dev.rosewood.roseloot.loot.LootResult;
@@ -8,7 +9,7 @@ import dev.rosewood.roseloot.loot.OverwriteExisting;
 import dev.rosewood.roseloot.loot.context.LootContext;
 import dev.rosewood.roseloot.loot.context.LootContextParams;
 import dev.rosewood.roseloot.loot.table.LootTableTypes;
-import dev.rosewood.roseloot.manager.ConfigurationManager;
+import dev.rosewood.roseloot.manager.LootTableManager;
 import org.bukkit.Location;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.event.EventHandler;
@@ -26,7 +27,7 @@ public class FallingBlockListener extends LazyLootTableListener {
         if (!(event.getEntity() instanceof FallingBlock fallingBlock))
             return;
 
-        if (ConfigurationManager.Setting.DISABLED_WORLDS.getStringList().stream().anyMatch(x -> x.equalsIgnoreCase(fallingBlock.getWorld().getName())))
+        if (this.rosePlugin.getRoseConfig().get(SettingKey.DISABLED_WORLDS).stream().anyMatch(x -> x.equalsIgnoreCase(fallingBlock.getWorld().getName())))
             return;
 
         LootContext lootContext = LootContext.builder()
@@ -34,7 +35,7 @@ public class FallingBlockListener extends LazyLootTableListener {
                 .put(LootContextParams.LOOTED_BLOCK_STATE, fallingBlock.getBlockState()) // Paper method, hence this being paper-only
                 .put(LootContextParams.HAS_EXISTING_ITEMS, true)
                 .build();
-        LootResult lootResult = LOOT_TABLE_MANAGER.getLoot(LootTableTypes.BLOCK, lootContext);
+        LootResult lootResult = this.rosePlugin.getManager(LootTableManager.class).getLoot(LootTableTypes.BLOCK, lootContext);
         if (lootResult.isEmpty())
             return;
 

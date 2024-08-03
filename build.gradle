@@ -9,7 +9,7 @@ plugins {
 sourceCompatibility = JavaVersion.VERSION_17
 targetCompatibility = JavaVersion.VERSION_17
 group = 'dev.rosewood'
-version = '1.2.16'
+version = '1.2.17'
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(21))
@@ -65,22 +65,23 @@ dependencies {
     compileOnly 'io.lumine:Mythic-Dist:5.1.0-SNAPSHOT'
     compileOnly 'pers.neige.neigeitems:NeigeItems:1.14.27'
     compileOnly 'com.willfp:eco:6.71.4'
+    compileOnly 'com.willfp:EcoSkills:3.58.0'
     compileOnly 'me.wolfyscript:customcrafting:3.16.6.2'
     compileOnly 'com.wolfyscript:utilities:4.16.4.1'
-    compileOnly 'dev.rosewood:rosestacker:1.5.19'
+    compileOnly 'dev.rosewood:rosestacker:1.5.24-SNAPSHOT'
     compileOnly 'me.casperge:realisticseasons:8.1.3'
     compileOnly 'com.dfsek.terra:api:6.1.2-BETA+9abac34b8'
     compileOnly 'com.dfsek.terra:common:6.1.2-BETA+9abac34b8'
     compileOnly 'com.dfsek.terra:bukkit:6.1.2-BETA+9abac34b8'
-    compileOnly 'de.tr7zw:item-nbt-api-plugin:2.10.0'
+    compileOnly 'de.tr7zw:item-nbt-api-plugin:2.13.1'
     compileOnly 'net.coreprotect:coreprotect:21.0'
-    compileOnly 'com.github.Xiao-MoMi:Custom-Fishing:2.0.11'
+    compileOnly 'com.github.Xiao-MoMi:Custom-Fishing:2.2.0'
     compileOnly 'dev.krakenied:blocktracker:1.0.5'
     compileOnly 'com.arcaniax:HeadDatabase-API:1.3.1', {
         exclude group: 'org.spigotmc'
     }
 
-    api 'dev.rosewood:rosegarden:1.3.3-SNAPSHOT'
+    api 'dev.rosewood:rosegarden:1.4.0'
 }
 
 shadowJar {
@@ -89,8 +90,8 @@ shadowJar {
 
     relocate('dev.rosewood.rosegarden', 'dev.rosewood.roseloot.lib.rosegarden')
 
-    exclude 'dev/rosewood/rosegarden/lib/hikaricp/**/*.class'
-    exclude 'dev/rosewood/rosegarden/lib/slf4j/**/*.class'
+    exclude 'com/zaxxer/hikari/**/*.class'
+    exclude 'org/slf4j/**/*.class'
 }
 
 processResources {

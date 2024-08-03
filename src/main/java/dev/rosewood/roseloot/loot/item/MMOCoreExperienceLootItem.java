@@ -12,7 +12,7 @@ public class MMOCoreExperienceLootItem implements GroupTriggerableLootItem<MMOCo
     private final String profession;
     private final NumberProvider amount;
 
-    public MMOCoreExperienceLootItem(String profession, NumberProvider amount) {
+    protected MMOCoreExperienceLootItem(String profession, NumberProvider amount) {
         this.profession = profession;
         this.amount = amount;
     }
@@ -25,7 +25,7 @@ public class MMOCoreExperienceLootItem implements GroupTriggerableLootItem<MMOCo
     @Override
     public void trigger(LootContext context, Location location, List<MMOCoreExperienceLootItem> others) {
         double amount = this.amount.getDouble(context) + others.stream().mapToDouble(x -> x.amount.getDouble(context)).sum();
-        context.getLootingPlayer().ifPresent(x -> MMOCoreHook.giveExperience(x, this.profession, this.amount.getDouble(context)));
+        context.getLootingPlayer().ifPresent(x -> MMOCoreHook.giveExperience(x, this.profession, amount));
     }
 
     @Override

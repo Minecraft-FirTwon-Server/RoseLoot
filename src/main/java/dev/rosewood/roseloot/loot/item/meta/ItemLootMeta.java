@@ -2,6 +2,7 @@ package dev.rosewood.roseloot.loot.item.meta;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.ObjectArrays;
 import dev.rosewood.rosegarden.utils.NMSUtil;
 import dev.rosewood.roseloot.loot.context.LootContext;
 import dev.rosewood.roseloot.loot.context.LootContextParams;
@@ -9,14 +10,16 @@ import dev.rosewood.roseloot.provider.NumberProvider;
 import dev.rosewood.roseloot.provider.StringProvider;
 import dev.rosewood.roseloot.util.BlockInfo;
 import dev.rosewood.roseloot.util.LootUtils;
-import dev.rosewood.roseloot.util.OptionalPercentageValue;
 import dev.rosewood.roseloot.util.nms.EnchantingUtils;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Nameable;
@@ -38,12 +41,57 @@ import org.bukkit.inventory.meta.Repairable;
 
 public class ItemLootMeta {
 
+    private static class MaterialMappings {
+        private static final Map<Material, Function<ConfigurationSection, ? extends ItemLootMeta>> CONSTRUCTORS;
+        private static final Map<Material, BiConsumer<ItemStack, StringBuilder>> PROPERTY_APPLIERS;
+        static {
+            CONSTRUCTORS = new HashMap<>();
+            PROPERTY_APPLIERS = new HashMap<>();
+
+            mapMaterials(BookItemLootMeta::new, BookItemLootMeta::applyProperties, Material.WRITABLE_BOOK, Material.WRITTEN_BOOK);
+            mapMaterials(EnchantmentStorageItemLootMeta::new, EnchantmentStorageItemLootMeta::applyProperties, Material.ENCHANTED_BOOK);
+            mapMaterials(FireworkEffectItemLootMeta::new, FireworkEffectItemLootMeta::applyProperties, Material.FIREWORK_STAR);
+            mapMaterials(FireworkItemLootMeta::new, FireworkItemLootMeta::applyProperties, Material.FIREWORK_ROCKET);
+            mapMaterials(KnowledgeBookItemLootMeta::new, KnowledgeBookItemLootMeta::applyProperties, Material.KNOWLEDGE_BOOK);
+            mapMaterials(PotionItemLootMeta::new, PotionItemLootMeta::applyProperties, Material.POTION, Material.SPLASH_POTION, Material.LINGERING_POTION, Material.TIPPED_ARROW);
+            mapMaterials(SkullItemLootMeta::new, SkullItemLootMeta::applyProperties, Material.PLAYER_HEAD);
+            mapMaterials(SuspiciousStewItemLootMeta::new, SuspiciousStewItemLootMeta::applyProperties, Material.SUSPICIOUS_STEW);
+            mapMaterials(TropicalFishBucketItemLootMeta::new, TropicalFishBucketItemLootMeta::applyProperties, Material.TROPICAL_FISH_BUCKET);
+            mapMaterials(MapItemLootMeta::new, MapItemLootMeta::applyProperties, Material.MAP);
+
+            mapMaterials(BannerItemLootMeta::new, BannerItemLootMeta::applyProperties, Tag.ITEMS_BANNERS.getValues().toArray(Material[]::new));
+
+            if (NMSUtil.getVersionNumber() >= 17) {
+                mapMaterials(AxolotlBucketItemLootMeta::new, AxolotlBucketItemLootMeta::applyProperties, Material.AXOLOTL_BUCKET);
+                mapMaterials(BundleItemLootMeta::new, BundleItemLootMeta::applyProperties, Material.BUNDLE);
+            }
+
+            Material[] leatherArmor = { Material.LEATHER_HELMET, Material.LEATHER_CHESTPLATE, Material.LEATHER_LEGGINGS, Material.LEATHER_BOOTS };
+            if (NMSUtil.getVersionNumber() >= 20) {
+                mapMaterials(ArmorItemLootMeta::new, ArmorItemLootMeta::applyProperties, Tag.ITEMS_TRIMMABLE_ARMOR.getValues().toArray(Material[]::new));
+                mapMaterials(ColorableArmorItemLootMeta::new, ColorableArmorItemLootMeta::applyProperties, leatherArmor); // overwrites the above
+            } else {
+                mapMaterials(LeatherArmorItemLootMeta::new, LeatherArmorItemLootMeta::applyProperties, ObjectArrays.concat(leatherArmor, Material.LEATHER_HORSE_ARMOR));
+            }
+
+            if (NMSUtil.getVersionNumber() >= 21)
+                mapMaterials(OminousBottleItemLootMeta::new, OminousBottleItemLootMeta::applyProperties, Material.OMINOUS_BOTTLE);
+        }
+
+        private static void mapMaterials(Function<ConfigurationSection, ? extends ItemLootMeta> constructor, BiConsumer<ItemStack, StringBuilder> propertyApplier, Material... materials) {
+            for (Material material : materials) {
+                CONSTRUCTORS.put(material, constructor);
+                PROPERTY_APPLIERS.put(material, propertyApplier);
+            }
+        }
+    }
+
     private final StringProvider displayName;
     private final StringProvider lore;
-    private Integer customModelData;
+    private final NumberProvider customModelData;
     private Boolean unbreakable;
-    private Integer repairCost;
-    private OptionalPercentageValue minDurability, maxDurability;
+    private final NumberProvider repairCost;
+    private final NumberProvider durability;
     private NumberProvider enchantmentLevel;
     private boolean includeTreasureEnchantments;
     private List<ItemFlag> hideFlags;
@@ -53,33 +101,15 @@ public class ItemLootMeta {
     protected Boolean copyBlockState;
     protected Boolean copyBlockData;
     protected Boolean copyBlockName;
+    protected boolean restoreVanillaAttributes;
 
     public ItemLootMeta(ConfigurationSection section) {
         this.displayName = StringProvider.fromSection(section, "display-name", null);
         this.lore = StringProvider.fromSection(section, "lore", null);
-        if (section.isInt("custom-model-data")) this.customModelData = section.getInt("custom-model-data");
+        this.customModelData = NumberProvider.fromSection(section, "custom-model-data", null);
         if (section.isBoolean("unbreakable")) this.unbreakable = section.getBoolean("unbreakable");
-        if (section.isInt("repair-cost")) this.repairCost = section.getInt("repair-cost");
-
-        if (section.contains("durability")) {
-            if (!section.isConfigurationSection("durability")) {
-                // Fixed value
-                OptionalPercentageValue durability = OptionalPercentageValue.parse(section.getString("durability"));
-                if (durability != null)
-                    this.minDurability = durability;
-            } else {
-                // Min/max values
-                ConfigurationSection durabilitySection = section.getConfigurationSection("durability");
-                if (durabilitySection != null) {
-                    OptionalPercentageValue minDurability = OptionalPercentageValue.parse(durabilitySection.getString("min"));
-                    OptionalPercentageValue maxDurability = OptionalPercentageValue.parse(durabilitySection.getString("max"));
-                    if (minDurability != null && maxDurability != null) {
-                        this.minDurability = minDurability;
-                        this.maxDurability = maxDurability;
-                    }
-                }
-            }
-        }
+        this.repairCost = NumberProvider.fromSection(section, "repair-cost", null);
+        this.durability = NumberProvider.fromSection(section, "durability", null);
 
         ConfigurationSection enchantRandomlySection = section.getConfigurationSection("enchant-randomly");
         if (enchantRandomlySection != null) {
@@ -197,6 +227,8 @@ public class ItemLootMeta {
 
         if (section.getBoolean("copy-block-name", false))
             this.copyBlockName = true;
+
+        this.restoreVanillaAttributes = section.getBoolean("restore-vanilla-attributes", true);
     }
 
     /**
@@ -214,11 +246,17 @@ public class ItemLootMeta {
 
         if (this.displayName != null) itemMeta.setDisplayName(this.displayName.getFormatted(context));
         if (this.lore != null) itemMeta.setLore(this.lore.getListFormatted(context));
-        if (this.customModelData != null) itemMeta.setCustomModelData(this.customModelData);
+        if (this.customModelData != null) itemMeta.setCustomModelData(this.customModelData.getInteger(context));
         if (this.unbreakable != null) itemMeta.setUnbreakable(this.unbreakable);
         if (this.hideFlags != null) itemMeta.addItemFlags(this.hideFlags.toArray(new ItemFlag[0]));
 
-        if (itemStack.getType() != Material.ENCHANTED_BOOK) {
+        if (this.enchantmentLevel != null) {
+            Optional<World> world = context.get(LootContextParams.ORIGIN).map(Location::getWorld);
+            itemStack = EnchantingUtils.randomlyEnchant(itemStack, this.enchantmentLevel.getInteger(context), this.includeTreasureEnchantments, world.orElse(null));
+        }
+
+        Material type = itemStack.getType();
+        if (type != Material.ENCHANTED_BOOK) {
             if (this.randomEnchantments != null) {
                 List<Enchantment> possibleEnchantments = new ArrayList<>();
                 if (!this.randomEnchantments.isEmpty()) {
@@ -250,28 +288,27 @@ public class ItemLootMeta {
         if (this.attributes != null) {
             Multimap<Attribute, AttributeModifier> attributes = ArrayListMultimap.create();
             this.attributes.forEach(x -> attributes.put(x.attribute(), x.toAttributeModifier(context)));
+            if (NMSUtil.getVersionNumber() >= 21 && this.restoreVanillaAttributes && type.isItem())
+                attributes.putAll(type.getDefaultAttributeModifiers());
             itemMeta.setAttributeModifiers(attributes);
         }
 
-        if (itemMeta instanceof Damageable damageable && this.minDurability != null) {
-            int max = itemStack.getType().getMaxDurability();
-            if (this.maxDurability == null) {
-                // Set fixed durability value
-                int durability = this.minDurability.getAsInt(max);
-                damageable.setDamage(itemStack.getType().getMaxDurability() - durability);
+        if (itemMeta instanceof Damageable damageable && this.durability != null) {
+            int max = type.getMaxDurability();
+            int durabilityValue;
+            if (this.durability.isPercentage()) {
+                durabilityValue = (int) Math.round(this.durability.getDouble(context) * max);
             } else {
-                // Set random durability in range
-                int minDurability = this.minDurability.getAsInt(max);
-                int maxDurability = this.maxDurability.getAsInt(max);
-                damageable.setDamage(itemStack.getType().getMaxDurability() - LootUtils.randomInRange(minDurability, maxDurability));
+                durabilityValue = this.durability.getInteger(context);
             }
+            damageable.setDamage(max - Math.max(0, Math.min(durabilityValue, max)));
         }
 
         if (this.repairCost != null && itemMeta instanceof Repairable)
-            ((Repairable) itemMeta).setRepairCost(this.repairCost);
+            ((Repairable) itemMeta).setRepairCost(this.repairCost.getInteger(context));
 
         Optional<BlockInfo> lootedBlock = context.getLootedBlockInfo();
-        if (lootedBlock.isPresent() && lootedBlock.get().getMaterial() == itemStack.getType()) {
+        if (lootedBlock.isPresent() && lootedBlock.get().getMaterial() == type) {
             BlockInfo block = lootedBlock.get();
             if (this.copyBlockState != null && this.copyBlockState && itemMeta instanceof BlockStateMeta blockStateMeta)
                 blockStateMeta.setBlockState(block.getState());
@@ -285,42 +322,11 @@ public class ItemLootMeta {
 
         itemStack.setItemMeta(itemMeta);
 
-        if (this.enchantmentLevel != null) {
-            Optional<World> world = context.get(LootContextParams.ORIGIN).map(Location::getWorld);
-            itemStack = EnchantingUtils.randomlyEnchant(itemStack, this.enchantmentLevel.getInteger(context), this.includeTreasureEnchantments, world.orElse(null));
-        }
-
         return itemStack;
     }
 
     public static ItemLootMeta fromSection(Material material, ConfigurationSection section) {
-        if (Tag.ITEMS_BANNERS.isTagged(material))
-            return new BannerItemLootMeta(section);
-
-        if (NMSUtil.getVersionNumber() >= 20 && Tag.ITEMS_TRIMMABLE_ARMOR.isTagged(material)) {
-            return switch (material) {
-                case LEATHER_HELMET, LEATHER_CHESTPLATE, LEATHER_LEGGINGS, LEATHER_BOOTS -> new ColorableArmorItemLootMeta(section);
-                default -> new ArmorItemLootMeta(section);
-            };
-        }
-
-        return switch (material) {
-            case WRITABLE_BOOK, WRITTEN_BOOK -> new BookItemLootMeta(section);
-            case ENCHANTED_BOOK -> new EnchantmentStorageItemLootMeta(section);
-            case FIREWORK_STAR -> new FireworkEffectItemLootMeta(section);
-            case FIREWORK_ROCKET -> new FireworkItemLootMeta(section);
-            case KNOWLEDGE_BOOK -> new KnowledgeBookItemLootMeta(section);
-            case LEATHER_HELMET, LEATHER_CHESTPLATE, LEATHER_LEGGINGS, LEATHER_BOOTS, LEATHER_HORSE_ARMOR -> new LeatherArmorItemLootMeta(section);
-            case POTION, SPLASH_POTION, LINGERING_POTION, TIPPED_ARROW -> new PotionItemLootMeta(section);
-            case PLAYER_HEAD -> new SkullItemLootMeta(section);
-            case SUSPICIOUS_STEW -> new SuspiciousStewItemLootMeta(section);
-            case TROPICAL_FISH_BUCKET -> new TropicalFishBucketItemLootMeta(section);
-            case AXOLOTL_BUCKET -> new AxolotlBucketItemLootMeta(section);
-            case BUNDLE -> new BundleItemLootMeta(section);
-            case MAP -> new MapItemLootMeta(section);
-            case OMINOUS_BOTTLE -> new OminousBottleItemLootMeta(section);
-            default -> new ItemLootMeta(section);
-        };
+        return MaterialMappings.CONSTRUCTORS.getOrDefault(material, ItemLootMeta::new).apply(section);
     }
 
     @SuppressWarnings("deprecation")
@@ -378,35 +384,7 @@ public class ItemLootMeta {
             }
         }
 
-        if (Tag.ITEMS_BANNERS.isTagged(material)) {
-            BannerItemLootMeta.applyProperties(itemStack, stringBuilder);
-            return;
-        }
-
-        if (NMSUtil.getVersionNumber() >= 20 && Tag.ITEMS_TRIMMABLE_ARMOR.isTagged(material)) {
-            switch (material) {
-                case LEATHER_HELMET, LEATHER_CHESTPLATE, LEATHER_LEGGINGS, LEATHER_BOOTS -> ColorableArmorItemLootMeta.applyProperties(itemStack, stringBuilder);
-                default -> ArmorItemLootMeta.applyProperties(itemStack, stringBuilder);
-            }
-            return;
-        }
-
-        switch (material) {
-            case WRITABLE_BOOK, WRITTEN_BOOK -> BookItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case ENCHANTED_BOOK -> EnchantmentStorageItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case FIREWORK_STAR -> FireworkEffectItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case FIREWORK_ROCKET -> FireworkItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case KNOWLEDGE_BOOK -> KnowledgeBookItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case LEATHER_HELMET, LEATHER_CHESTPLATE, LEATHER_LEGGINGS, LEATHER_BOOTS, LEATHER_HORSE_ARMOR -> LeatherArmorItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case POTION, SPLASH_POTION, LINGERING_POTION, TIPPED_ARROW -> PotionItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case PLAYER_HEAD -> SkullItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case SUSPICIOUS_STEW -> SuspiciousStewItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case TROPICAL_FISH_BUCKET -> TropicalFishBucketItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case AXOLOTL_BUCKET -> AxolotlBucketItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case BUNDLE -> BundleItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case MAP -> MapItemLootMeta.applyProperties(itemStack, stringBuilder);
-            case OMINOUS_BOTTLE -> OminousBottleItemLootMeta.applyProperties(itemStack, stringBuilder);
-        }
+        MaterialMappings.PROPERTY_APPLIERS.getOrDefault(material, (x, y) -> {}).accept(itemStack, stringBuilder);
     }
 
     private record AttributeData(Attribute attribute, NumberProvider amount, AttributeModifier.Operation operation, EquipmentSlot slot) {

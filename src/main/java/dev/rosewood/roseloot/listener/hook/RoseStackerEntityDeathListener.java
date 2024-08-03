@@ -2,6 +2,7 @@ package dev.rosewood.roseloot.listener.hook;
 
 import com.google.common.collect.Multimap;
 import dev.rosewood.rosegarden.RosePlugin;
+import dev.rosewood.roseloot.config.SettingKey;
 import dev.rosewood.roseloot.listener.helper.LazyLootTableListener;
 import dev.rosewood.roseloot.loot.LootContents;
 import dev.rosewood.roseloot.loot.LootResult;
@@ -10,7 +11,7 @@ import dev.rosewood.roseloot.loot.context.LootContext;
 import dev.rosewood.roseloot.loot.context.LootContextParam;
 import dev.rosewood.roseloot.loot.context.LootContextParams;
 import dev.rosewood.roseloot.loot.table.LootTableTypes;
-import dev.rosewood.roseloot.manager.ConfigurationManager;
+import dev.rosewood.roseloot.manager.LootTableManager;
 import dev.rosewood.roseloot.util.LootUtils;
 import dev.rosewood.rosestacker.event.EntityStackMultipleDeathEvent;
 import java.util.Map;
@@ -34,7 +35,7 @@ public class RoseStackerEntityDeathListener extends LazyLootTableListener {
     @EventHandler
     public void onEntityStackMultipleDeath(EntityStackMultipleDeathEvent event) {
         LivingEntity mainEntity = event.getStack().getEntity();
-        if (ConfigurationManager.Setting.DISABLED_WORLDS.getStringList().stream().anyMatch(x -> x.equalsIgnoreCase(mainEntity.getWorld().getName())))
+        if (this.rosePlugin.getRoseConfig().get(SettingKey.DISABLED_WORLDS).stream().anyMatch(x -> x.equalsIgnoreCase(mainEntity.getWorld().getName())))
             return;
 
         Entity looter = null;
@@ -73,7 +74,7 @@ public class RoseStackerEntityDeathListener extends LazyLootTableListener {
                 lootContext.addPlaceholder("rosestacker_entity_stack_amount_killed_unapproximated", event.getEntityKillCount());
                 primaried = true;
 
-                LootResult lootResult = LOOT_TABLE_MANAGER.getLoot(LootTableTypes.ENTITY, lootContext);
+                LootResult lootResult = this.rosePlugin.getManager(LootTableManager.class).getLoot(LootTableTypes.ENTITY, lootContext);
                 if (lootResult.isEmpty())
                     continue;
 

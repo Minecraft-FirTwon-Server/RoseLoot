@@ -1,18 +1,18 @@
 package dev.rosewood.roseloot;
 
 import dev.rosewood.rosegarden.RosePlugin;
+import dev.rosewood.rosegarden.config.RoseSetting;
 import dev.rosewood.rosegarden.manager.Manager;
 import dev.rosewood.rosegarden.utils.NMSUtil;
+import dev.rosewood.roseloot.config.SettingKey;
 import dev.rosewood.roseloot.hook.conditions.HookConditionListener;
 import dev.rosewood.roseloot.listener.FireworkDamageListener;
 import dev.rosewood.roseloot.listener.VoucherListener;
 import dev.rosewood.roseloot.manager.CommandManager;
-import dev.rosewood.roseloot.manager.ConfigurationManager;
 import dev.rosewood.roseloot.manager.CooldownManager;
 import dev.rosewood.roseloot.manager.DataManager;
 import dev.rosewood.roseloot.manager.LazyListenerManager;
 import dev.rosewood.roseloot.manager.LocaleManager;
-import dev.rosewood.roseloot.manager.LootConditionManager;
 import dev.rosewood.roseloot.manager.LootTableManager;
 import java.util.List;
 import org.bukkit.Bukkit;
@@ -33,7 +33,7 @@ public class RoseLoot extends RosePlugin {
     }
 
     public RoseLoot() {
-        super(101979, 12626, ConfigurationManager.class, DataManager.class, LocaleManager.class, CommandManager.class);
+        super(101979, 12626, DataManager.class, LocaleManager.class, CommandManager.class);
 
         instance = this;
     }
@@ -57,11 +57,32 @@ public class RoseLoot extends RosePlugin {
     @Override
     protected List<Class<? extends Manager>> getManagerLoadPriority() {
         return List.of(
-                LootConditionManager.class,
                 LootTableManager.class,
                 LazyListenerManager.class,
                 CooldownManager.class
         );
+    }
+
+    @Override
+    public boolean isLocalDatabaseOnly() {
+        return true;
+    }
+
+    @Override
+    protected List<RoseSetting<?>> getRoseConfigSettings() {
+        return SettingKey.getKeys();
+    }
+
+    @Override
+    protected String[] getRoseConfigHeader() {
+        return new String[] {
+                "     __________                     ____                  __",
+                "     \\______   \\ ____  ______ ____ |    |    ____   _____/  |_",
+                "      |       _//  _ \\/  ___// __ \\|    |   /  _ \\ /  _ \\   __\\",
+                "      |    |   (  <_> )___ \\\\  ___/|    |__(  <_> |  <_> )  |",
+                "      |____|_  /\\____/____  >\\___  >_______ \\____/ \\____/|__|",
+                "             \\/           \\/     \\/        \\/"
+        };
     }
 
 }
